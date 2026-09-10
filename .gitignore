@@ -1,0 +1,12 @@
+node_modules/
+dist/
+data.json
+.local-backups/
+deployment.json
+.env
+.env.*
+.obsidian/
+*.log
+*.tmp
+*.bak
+.DS_Store

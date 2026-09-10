@@ -1,0 +1,31 @@
+{
+  "name": "aag-smart-paste",
+  "version": "0.5.1",
+  "private": true,
+  "scripts": {
+    "check": "node scripts/publication.cjs check",
+    "build": "node scripts/build.js",
+    "test": "node --test tests/*.test.js",
+    "scan": "node scripts/publication.cjs scan",
+    "release:stage": "node scripts/publication.cjs stage",
+    "release:check": "node scripts/publication.cjs assets",
+    "release:tag": "node scripts/publication.cjs tag",
+    "verify": "npm run check && npm run build && npm test && npm run release:stage && npm run release:check && npm run scan && npm run reproducibility",
+    "reproducibility": "node scripts/reproducibility.cjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "markdown-it": "14.1.0"
+  },
+  "devDependencies": {
+    "@codemirror/language": "6.12.4",
+    "@codemirror/state": "6.7.4",
+    "@codemirror/view": "6.43.11",
+    "@lezer/common": "1.5.2",
+    "esbuild": "0.28.1"
+  },
+  "license": "MIT",
+  "author": "AAG"
+}

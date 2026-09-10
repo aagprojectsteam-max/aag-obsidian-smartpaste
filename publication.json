@@ -1,0 +1,19 @@
+{
+  "id": "aag-smart-paste",
+  "runtimeExternals": [
+    "obsidian",
+    "@codemirror/state",
+    "@codemirror/view",
+    "@codemirror/language"
+  ],
+  "bundledNotices": true,
+  "reviewedContent": {
+    "main.js": {
+      "sha256": "a2a51cc577dc66c61dfa8765852d2bc889f0a2db91e2ea397fc1c9821be7b4c3",
+      "categories": [
+        "local-address"
+      ],
+      "reason": "Generic loopback token in bundled linkify-it URL parser, not a configured endpoint."
+    }
+  }
+}
