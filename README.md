@@ -6,6 +6,7 @@ Paste selected HTML formatting, clean up selected text, and create stable extern
 
 | Command | Behavior |
 |---|---|
+| Associate current location with Anki | Saves an exact location and invokes a compatible AAG Anki Bridge confirmation; requires the private coordinated integration. |
 | Paste HTML With Font Sizes | Keeps supported inline font size, alignment and direction while removing other HTML attributes. |
 | Paste Small Text As Braces | Converts HTML `<small>` content to `{text}`. |
 | Paste Small Text As Colors | Converts HTML `<small>` content to blue text. |
@@ -14,6 +15,10 @@ Paste selected HTML formatting, clean up selected text, and create stable extern
 | מחק נקודת הפניה של SmartPaste מהפסקה | Removes an eligible SmartPaste location point after confirmation. |
 
 The paste commands read clipboard HTML and fall back to plain text. They also replace square brackets with parentheses. There is no automatic paste interception, RTF reader or settings panel. Assign shortcuts in **Settings → Hotkeys**. Commands remain visible with sidebar/command-palette focus and use the active editor or the most recent visible main note. An unavailable editing context produces a notice without editing.
+
+## Optional Anki integration
+
+The association action requires private AAG Anki Bridge 0.2.0 and the coordinated AnkiSuit checkpoint; neither is bundled or available as a cleared public distribution. Existing standalone features need no Anki integration. See [component boundaries and compatibility](docs/integration.md).
 
 ## Usage
 

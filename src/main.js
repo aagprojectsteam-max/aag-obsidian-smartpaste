@@ -16,6 +16,12 @@ module.exports = class AAGSmartPastePlugin extends Plugin {
     });
 
     addEditorCommand(this, {
+      id: "associate-current-location-with-anki",
+      name: "Associate this location with Anki",
+      editorCallback: (editor, view) => this.copyLocationLink(editor, view, true)
+    });
+
+    addEditorCommand(this, {
       id: "paste-html-with-font-sizes",
       name: "Paste HTML With Font Sizes",
       editorCallback: async (editor) => {
@@ -73,7 +79,7 @@ module.exports = class AAGSmartPastePlugin extends Plugin {
     }
   }
 
-  async copyLocationLink(editor, view) {
+  async copyLocationLink(editor, view, associate = false) {
     if (this.copyingLocationLink) {
       new Notice("העתקת הקישור כבר מתבצעת.");
       return;
@@ -82,6 +88,11 @@ module.exports = class AAGSmartPastePlugin extends Plugin {
     let inserted = false;
     let saved = false;
     try {
+      const bridge = associate ? (this.app.plugins?.getPlugin?.("aag-anki-bridge") ||
+        this.app.plugins?.plugins?.["aag-anki-bridge"]) : null;
+      if (associate && typeof bridge?.associateObsidianLocation !== "function") {
+        throw new LocationLinkError("Association requires the coordinated AAG Anki Bridge and AnkiSuit update.");
+      }
       if (!(view instanceof MarkdownView) || !view.file || view.file.extension !== "md" || view.editor !== editor) {
         throw new LocationLinkError("יש לפתוח פתק Markdown במצב עריכה.");
       }
@@ -92,7 +103,7 @@ module.exports = class AAGSmartPastePlugin extends Plugin {
       if (/[#^|:]|%%|\[\[|\]\]/.test(path)) {
         throw new LocationLinkError("שם הקובץ או התיקייה מכיל תווים שאינם נתמכים בקישור בלוק של Obsidian.");
       }
-      if (!globalThis.navigator?.clipboard?.writeText) {
+      if (!associate && !globalThis.navigator?.clipboard?.writeText) {
         throw new LocationLinkError("אין גישה ללוח ההעתקה.");
       }
       const snapshot = editor.getValue();
@@ -152,12 +163,22 @@ module.exports = class AAGSmartPastePlugin extends Plugin {
       if (view.file !== file || file.path !== path || editor.getValue() !== expected || persisted !== (needsSave ? expected : beforeSave)) {
         throw new LocationLinkError("הפתק השתנה בזמן ההעתקה. יש להפעיל את הפקודה שוב.");
       }
-      await navigator.clipboard.writeText(uri);
-      new Notice(plan.structured ? "הקישור החיצוני לבלוק השלם הועתק." : "הקישור החיצוני למיקום הנוכחי הועתק.");
+      if (associate) {
+        // The bridge owns target selection, transport and semantic save confirmation.
+        await bridge.associateObsidianLocation({ uri });
+      } else {
+        await navigator.clipboard.writeText(uri);
+        new Notice(plan.structured ? "הקישור החיצוני לבלוק השלם הועתק." : "הקישור החיצוני למיקום הנוכחי הועתק.");
+      }
     } catch (error) {
       if (error instanceof LocationLinkError) {
         new Notice(error.message);
       } else {
+        if (associate) {
+          new Notice("Anki association was not confirmed. Any saved block ID remains available for retry.");
+          console.error("AAG Smart Paste: association failed", error);
+          return;
+        }
         new Notice(inserted
           ? (saved ? "הקישור לא הועתק. מזהה הבלוק נשמר; ניתן לנסות שוב." : "הקישור לא הועתק. מזהה הבלוק נוסף בעורך, אך השמירה נכשלה.")
           : "הקישור לא הועתק. יש לבדוק הרשאות שמירה ולוח העתקה ולנסות שוב.");

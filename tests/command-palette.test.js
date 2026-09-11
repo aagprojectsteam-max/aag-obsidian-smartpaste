@@ -9,6 +9,7 @@ const { loadNavigation } = require('./protocol-navigation-harness');
 const expected = {
   'remove-smartpaste-location-point': 'מחק נקודת הפניה של SmartPaste מהפסקה',
   'copy-external-link-to-current-location': 'העתק קישור חיצוני למיקום הנוכחי',
+  'associate-current-location-with-anki': 'Associate this location with Anki',
   'paste-html-with-font-sizes': 'Paste HTML With Font Sizes',
   'paste-small-as-braces': 'Paste Small Text As Braces',
   'paste-small-as-colors': 'Paste Small Text As Colors',
@@ -100,7 +101,7 @@ async function setup(options = {}) {
 }
 
 for (const bundle of [false, true]) {
-  test(`${bundle ? 'bundle' : 'source'}: all six unique commands register during onload without an editor`, async () => {
+  test(`${bundle ? 'bundle' : 'source'}: all unique commands register during onload without an editor`, async () => {
     const env = await setup({ bundle });
     assert.deepEqual(env.registrations.sort(), Object.keys(expected).sort());
     for (const [id, name] of Object.entries(expected)) {
@@ -109,7 +110,7 @@ for (const bundle of [false, true]) {
       assert.equal(typeof command.callback, 'function');
       for (const property of ['editorCallback', 'editorCheckCallback', 'checkCallback']) assert.equal(command[property], undefined);
     }
-    assert.equal(env.visible().length, 6);
+    assert.equal(env.visible().length, Object.keys(expected).length);
     assert.deepEqual(env.errors, []);
     env.unload();
     assert.equal(env.visible().length, 0, 'normal unload disposes commands');
@@ -117,7 +118,7 @@ for (const bundle of [false, true]) {
   for (const failure of ['failDecoration', 'failProtocol']) {
     test(`${bundle ? 'bundle' : 'source'}: ${failure} does not prevent any command or the other integration`, async () => {
       const env = await setup({ bundle, [failure]: true });
-      assert.equal(env.visible().length, 6);
+      assert.equal(env.visible().length, Object.keys(expected).length);
       assert.deepEqual(env.events, ['decoration', 'protocol']);
       assert.equal(env.errors.length, 1);
       assert.equal(env.notices.length, 1);
@@ -127,13 +128,13 @@ for (const bundle of [false, true]) {
     const env = await setup({ bundle });
     for (const recent of [null, { view: {}, isVisible: () => true }, { view: env.view, isVisible: () => false }]) {
       env.recent = recent;
-      assert.equal(env.visible().length, 6);
+      assert.equal(env.visible().length, Object.keys(expected).length);
       for (const command of Object.values(env.registry.commands)) await command.callback();
     }
     env.active = env.view; env.view.mode = 'preview';
     for (const command of Object.values(env.registry.commands)) await command.callback();
-    assert.equal(env.visible().length, 6);
-    assert.equal(env.notices.length, 24);
+    assert.equal(env.visible().length, Object.keys(expected).length);
+    assert.equal(env.notices.length, 4 * Object.keys(expected).length);
   });
   test(`${bundle ? 'bundle' : 'source'}: sidebar/palette focus resolves the most recent visible main Markdown editor`, async () => {
     const env = await setup({ bundle });
@@ -152,7 +153,7 @@ test('active Markdown view takes precedence over another recent note; selection 
   env.recent = { get view() { assert.fail('must not use another note'); }, isVisible: () => true };
   let selections = 0;
   env.view.editor.getSelection = () => { selections++; return ''; };
-  assert.equal(env.visible().length, 6); assert.equal(selections, 0);
+  assert.equal(env.visible().length, Object.keys(expected).length); assert.equal(selections, 0);
   await env.registry.commands['replace-square-brackets-in-selection'].callback();
   assert.equal(selections, 1); assert.equal(env.notices.at(-1), 'No text selected.');
 });
@@ -164,7 +165,7 @@ test('installed Obsidian filters original editorCallback commands when activeEdi
   env.registry.addCommand({ id: 'original-shape', editorCallback() { assert.fail('enumeration is read-only'); } });
   env.active = env.view;
   assert.equal(env.registry.commands['original-shape'].checkCallback(true), true);
-  assert.equal(env.visible().length, 7);
+  assert.equal(env.visible().length, Object.keys(expected).length + 1);
   env.active = null; // Search sidebar is active even though a source note is visible.
   assert.equal(env.registry.commands['original-shape'].checkCallback(true), null);
   assert.deepEqual(env.visible().sort(), Object.keys(expected).sort());

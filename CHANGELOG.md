@@ -1,4 +1,6 @@
-# AAG - Smart Paste 0.6.0
+# Changelog
+
+## 0.6.0
 
 Adds the optional **Associate current location with Anki** command through the existing AAG Anki Bridge API. It creates or reuses a stable block ID, saves and verifies the note, then opens the bridge confirmation for a specific Anki target. SmartPaste does not manage Anki profiles, databases or transports.
 
@@ -10,10 +12,6 @@ Linux acceptance covers real create/save/return, open and closed notes, a far pr
 
 Requires Obsidian 1.13.7 or newer. AAG-owned code remains MIT; bundled third-party licenses and notices remain intact.
 
-## Release asset SHA256
+## 0.5.1
 
-| Asset | SHA256 |
-| --- | --- |
-| main.js | `b11a329d6444e16cef1765c37e9c8264054fc889cb68e21bef0b5a4ee32760bc` |
-| manifest.json | `3e41dd744a44d6498590a7a67175420c74d9f9a297015538990c1f6ce62ecb34` |
-| styles.css | `b99d5e63f3ad6e6690bfac5aff5921e9e1ffe72779a907563ae256d8d0fee9e7` |
+Initial public licensed package and validated release tooling.

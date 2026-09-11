@@ -87,23 +87,57 @@ async function navigateToBlock(app, target, cancelled = () => false) {
   if (!(file instanceof TFile) || file.extension !== "md" || file.path !== target.file) {
     throw new NavigationError("הפתק המבוקש לא נמצא בכספת.");
   }
-  cachedBlock(app, file, target.block);
+  // A just-saved marker can precede Obsidian's metadata update. A bounded
+  // wait keeps that location intact; an unknown block still fails explicitly.
+  for (let attempt = 0; ; attempt++) {
+    if (cancelled()) return;
+    try { cachedBlock(app, file, target.block); break; }
+    catch (error) {
+      if (!(error instanceof NavigationError) || attempt === 50) throw error;
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+  }
   const workspace = app.workspace;
-  const leaf = workspace.getLeavesOfType("markdown").find(leaf =>
+  let leaf = workspace.getLeavesOfType("markdown").find(leaf =>
     leaf.view instanceof MarkdownView && leaf.view.file === file) || workspace.getLeaf(false);
   // No subpath, line, startLoc/endLoc, or match: these trigger native highlighting.
   await leaf.openFile(file, { active: true, state: { mode: "source" }, eState: {} });
   debug("file-opened", { path: target.file });
   if (cancelled()) return;
+  // Existing tab-management plugins may redirect openFile to another leaf.
+  // Follow only a Markdown view holding the exact requested TFile; revealing
+  // the original leaf would reactivate its previous note and lose the target.
+  if (!(leaf.view instanceof MarkdownView) || leaf.view.file !== file) {
+    const opened = workspace.getLeavesOfType("markdown").filter(candidate =>
+      candidate.view instanceof MarkdownView && candidate.view.file === file);
+    leaf = opened.find(candidate => candidate === workspace.activeLeaf) || opened[0] || leaf;
+  }
   await workspace.revealLeaf(leaf);
   if (cancelled()) return;
-  const view = leaf.view;
-  if (!(view instanceof MarkdownView) || view.file !== file || file.path !== target.file || view.getMode() !== "source") {
-    throw new NavigationError("לא ניתן לפתוח את הפתק המבוקש בעורך Markdown.");
+  // Some installed view integrations resolve openFile/revealLeaf before the
+  // target file and editor have finished replacing the previous view content.
+  // Wait only for that exact requested view; never navigate the previous file.
+  let view, block, cursor;
+  let readinessError;
+  for (let attempt = 0; attempt < 51; attempt++) {
+    if (cancelled()) return;
+    view = leaf.view;
+    if (view instanceof MarkdownView && view.file === file && file.path === target.file && view.getMode() === "source") {
+      try {
+        block = cachedBlock(app, file, target.block);
+        cursor = blockCursor(block, view.editor, target.block);
+        break;
+      } catch (error) {
+        if (!(error instanceof NavigationError)) throw error;
+        readinessError = error;
+      }
+    } else {
+      readinessError = new NavigationError("לא ניתן לפתוח את הפתק המבוקש בעורך Markdown.");
+    }
+    if (attempt === 50) throw readinessError;
+    await new Promise(resolve => setTimeout(resolve, 20));
   }
-  // Resolve again after opening: loading the view may yield to indexing or edits.
-  const block = cachedBlock(app, file, target.block);
-  const cursor = blockCursor(block, view.editor, target.block);
+  if (cancelled()) return;
   view.editor.setCursor(cursor);
   view.editor.focus();
   view.editor.scrollIntoView({ from: cursor, to: cursor }, true);
@@ -119,26 +153,27 @@ function registerProtocolNavigation(plugin) {
   plugin.app.workspace.onLayoutReady(releaseReady);
   plugin.register(() => { disposed = true; releaseReady(); });
   let pending = Promise.resolve();
+  // One awaited navigation API shared by URI dispatch and the coordinated bridge.
+  plugin.navigateToLocation = target => {
+    try { target = parseProtocolTarget({ action: PROTOCOL_ACTION, ...target }, plugin.app.vault.getName()); }
+    catch (error) { return Promise.reject(error); }
+    const request = pending.then(async () => {
+      await ready;
+      if (disposed) throw new NavigationError("SmartPaste is unloaded.");
+      await navigateToBlock(plugin.app, target, () => disposed);
+      if (disposed) throw new NavigationError("SmartPaste is unloaded.");
+    });
+    pending = request.catch(() => {});
+    return request;
+  };
   plugin.registerObsidianProtocolHandler(PROTOCOL_ACTION, params => {
-    debug("handler-invoked", { params });
     if (disposed) return Promise.resolve();
     let target;
-    try {
-      target = parseProtocolTarget(params, plugin.app.vault.getName());
-      debug("args-parsed", target);
-    } catch (error) {
-      debug("args-rejected", { reason: error.message });
-      new Notice(error.message); return Promise.resolve();
-    }
-    // Serialize external requests; unload cancels pending work at each await.
-    pending = pending.then(async () => {
-      await ready;
-      if (!disposed) await navigateToBlock(plugin.app, target, () => disposed);
-    }).catch(error => {
-      debug("navigation-failed", { reason: error.message });
+    try { target = parseProtocolTarget(params, plugin.app.vault.getName()); }
+    catch (error) { new Notice(error.message); return Promise.resolve(); }
+    return plugin.navigateToLocation(target).catch(error => {
       if (!disposed) new Notice(error instanceof NavigationError ? error.message : "לא ניתן לנווט אל הפתק. יש לנסות שוב.");
     });
-    return pending;
   });
   debug("handler-registered", { action: PROTOCOL_ACTION });
 }

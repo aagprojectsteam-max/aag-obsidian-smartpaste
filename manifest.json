@@ -1,7 +1,7 @@
 {
   "id": "aag-smart-paste",
   "name": "AAG - Smart Paste",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "minAppVersion": "1.13.7",
   "description": "Paste formatted text, clean up selections, and link to precise locations in Markdown notes.",
   "author": "AAG - Projects Team",

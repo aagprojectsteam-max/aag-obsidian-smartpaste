@@ -6,7 +6,7 @@ const { setup } = require("./protocol-navigation-harness");
 const id = "smartpasteblockID-0123456789abcdef";
 const params = { action: "smartpaste", vault: "Example Vault", file: "note.md", block: id };
 
-for (const path of ["note.md", 'דוגמאות/דוגמאות שו"ע יו"ד מסמך לדוגמה.md', "spaces in name.md",
+for (const path of ["note.md", 'דוגמאות/דוגמאות שו"ע יו"ד סימן צב.md', "spaces in name.md",
   "one/two/three.md", "literal%20filename.md", "literal%2e%2e/note.md", "plus+percent%25.md"]) {
   test(`protocol URI round trip with one decoding: ${path}`, () => {
     const uri = buildBlockUri(params.vault, path, id);
@@ -190,5 +190,67 @@ test("unload during file opening cancels cursor/focus/scroll and queued requests
   assert.equal(env.handlers.size, 0);
   assert.equal(env.calls.filter(c => c[0] === "open").length, 1);
   assert.equal(env.calls.some(c => ["cursor", "focus", "scroll"].includes(c[0])), false);
+  assert.equal(env.editor.getValue(), env.doc);
+});
+
+
+test("closed note waits for requested file identity after reveal resolves early", async () => {
+  let env;
+  env = setup({ noExistingLeaf: true, onReveal(e) {
+    e.view.file = { path: "previous.md" };
+    setTimeout(() => { e.view.file = e.file; }, 40);
+  } });
+  await env.request();
+  assert.deepEqual(env.notices, []);
+  assert.equal(env.calls.filter(c => c[0] === "cursor").length, 1);
+  assert.equal(env.view.file, env.file);
+  assert.equal(env.editor.getValue(), env.doc);
+});
+
+test("closed note waits for the editor content to match indexed block", async () => {
+  const env = setup({ noExistingLeaf: true, onReveal(e) {
+    e.view.editor = { ...e.editor, lineCount: () => 1 };
+    setTimeout(() => { e.view.editor = e.editor; }, 40);
+  } });
+  await env.request();
+  assert.deepEqual(env.notices, []);
+  assert.equal(env.calls.filter(c => c[0] === "cursor").length, 1);
+  assert.equal(env.editor.getValue(), env.doc);
+});
+
+test("unload while awaiting file readiness never moves the cursor", async () => {
+  const env = setup({ noExistingLeaf: true, onReveal(e) {
+    e.view.file = { path: "previous.md" };
+    setTimeout(() => e.plugin.unload(), 20);
+  } });
+  await env.request();
+  assert.equal(env.calls.filter(c => c[0] === "cursor").length, 0);
+});
+
+
+test("newly saved block waits for metadata without opening a file-only target", async () => {
+  const env = setup();
+  const indexed = env.cache;
+  env.cache = null;
+  setTimeout(() => { env.cache = indexed; }, 40);
+  await env.request();
+  assert.deepEqual(env.notices, []);
+  assert.equal(env.calls.filter(c => c[0] === "cursor").length, 1);
+  assert.equal(env.editor.getValue(), env.doc);
+});
+
+test("Opener-style redirection reveals and navigates the actual target leaf", async () => {
+  let redirected;
+  const env = setup({ noExistingLeaf: true, onOpen(e) {
+    redirected = { view: Object.assign(new e.obsidian.MarkdownView(), { file: e.file, editor: e.editor, mode: 'source' }) };
+    e.view.file = { path: 'previous.md' };
+    e.view.editor = { setCursor() { throw new Error('Wrong editor'); } };
+    e.app.workspace.activeLeaf = redirected;
+    e.app.workspace.getLeavesOfType = () => [e.leaf, redirected];
+  } });
+  await env.request();
+  assert.deepEqual(env.notices, []);
+  assert.equal(env.calls.find(c => c[0] === 'reveal')[1], redirected);
+  assert.equal(env.calls.filter(c => c[0] === 'cursor').length, 1);
   assert.equal(env.editor.getValue(), env.doc);
 });

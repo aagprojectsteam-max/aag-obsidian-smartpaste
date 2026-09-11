@@ -3,7 +3,7 @@ const vm = require("node:vm");
 const { EditorState } = require("@codemirror/state");
 
 function loadNavigation(obsidian) {
-  const context = { module: { exports: {} }, require(name) {
+  const context = { setTimeout, clearTimeout, module: { exports: {} }, require(name) {
     if (name === "obsidian") return obsidian;
     if (name === "./protocol-target") return require("../src/protocol-target");
     if (name === "./navigation-highlight") return require("../src/navigation-highlight");

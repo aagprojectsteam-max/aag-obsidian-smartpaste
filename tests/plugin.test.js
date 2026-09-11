@@ -123,7 +123,7 @@ for (const bundle of [false, true]) {
   test(`${bundle ? "built artifact" : "source"}: command saves before copying and reuses ID`, async () => {
     const env = setup("שלום עולם", { bundle });
     await env.plugin.onload();
-    assert.equal(env.plugin.commands.length, 6);
+    assert.equal(env.plugin.commands.length, 7);
     const command = env.plugin.commands.find((c) => c.id === "copy-external-link-to-current-location");
     assert.equal(command.name, "העתק קישור חיצוני למיקום הנוכחי");
     await command.callback();
@@ -210,13 +210,13 @@ test("concurrent invocations cannot insert two IDs", async () => {
 test("all four original commands and plain-text behavior remain available", async () => {
   const env = setup("[שלום] [world]", { bundle: true });
   await env.plugin.onload();
-  assert.deepEqual(Array.from(env.plugin.commands, (c) => c.id).slice(2), [
+  assert.deepEqual(Array.from(env.plugin.commands, (c) => c.id).slice(3), [
     "paste-html-with-font-sizes", "paste-small-as-braces", "paste-small-as-colors", "replace-square-brackets-in-selection"
   ]);
   const replace = env.plugin.commands.find((c) => c.id === "replace-square-brackets-in-selection");
   replace.callback();
   assert.equal(env.editor.getValue(), "(שלום) (world)");
-  for (const command of env.plugin.commands.slice(2, 5)) {
+  for (const command of env.plugin.commands.slice(3, 6)) {
     await command.callback();
     assert.equal(env.editor.getValue(), "טקסט (plain)");
   }
@@ -351,4 +351,37 @@ for (const bundle of [false, true]) {
       }
     });
   }
+}
+
+for (const bundle of [false, true]) {
+  test(`${bundle ? "bundle" : "source"}: association action saves stable marker and delegates exact URI only to Bridge`, async () => {
+    const env = setup("Location", { bundle });
+    const requests = [];
+    env.plugin.app.plugins = { getPlugin: id => {
+      assert.equal(id, "aag-anki-bridge");
+      return { async associateObsidianLocation(request) { requests.push(request); env.events.push("bridge"); } };
+    } };
+    delete env.clipboard.writeText;
+    await env.plugin.onload();
+    const command = env.plugin.commands.find(c => c.id === "associate-current-location-with-anki");
+    await command.callback();
+    assert.deepEqual(env.events, ["read", "edit", "save", "read", "bridge"]);
+    const uri = new URL(requests[0].uri);
+    assert.equal(uri.searchParams.get("block"), env.editor.getValue().split("^").at(-1));
+    assert.equal(uri.searchParams.get("file"), env.view.file.path);
+    assert.deepEqual(Object.keys(requests[0]), ["uri"], "SmartPaste has no Anki target or profile responsibilities");
+    await command.callback();
+    assert.equal(requests[1].uri, requests[0].uri);
+    assert.equal(env.edits, 1);
+    assert.deepEqual(env.writes, []);
+  });
+  test(`${bundle ? "bundle" : "source"}: missing or legacy Bridge prevents association action from editing`, async () => {
+    const env = setup("Location", { bundle });
+    env.plugin.app.plugins = { getPlugin: () => ({ sendCurrentNote() { throw Error("Must not use open action"); } }) };
+    await env.plugin.onload();
+    await env.plugin.commands.find(c => c.id === "associate-current-location-with-anki").callback();
+    assert.equal(env.edits, 0);
+    assert.deepEqual(env.writes, []);
+    assert.match(env.notices.at(-1), /coordinated AAG Anki Bridge/);
+  });
 }
