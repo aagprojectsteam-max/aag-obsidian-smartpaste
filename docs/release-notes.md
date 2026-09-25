@@ -1,19 +1,20 @@
-# AAG - Smart Paste 0.6.0
+# AAG - Smart Paste 0.6.1
 
-Adds the optional **Associate current location with Anki** command through the existing AAG Anki Bridge API. It creates or reuses a stable block ID, saves and verifies the note, then opens the bridge confirmation for a specific Anki target. SmartPaste does not manage Anki profiles, databases or transports.
+This release hardens asynchronous paste handling and HTML conversion while preserving the existing SmartPaste workflow.
 
-Requires an already installed compatible private AAG Anki Bridge 0.2.0 and the coordinated AnkiSuit checkpoint. Those components are not included in this public release and are not currently cleared for public redistribution. If a compatible bridge is unavailable, the command reports that prerequisite before editing. All standalone paste, copy-link and location-point commands remain available.
+- Aborts asynchronous paste if the target editor/file/selection changed while clipboard access was pending.
+- Replaces fragile paragraph-tag rewriting with DOM-aware HTML transformation.
+- Preserves paragraph and line-break boundaries when converting small text to braces.
+- Scopes SmartPaste formatting CSS to SmartPaste-owned output.
+- Adds browser-based regression coverage for active/unsupported HTML sanitization.
+- Keeps the existing precise-location and optional local Anki Bridge integration behavior.
 
-Fixes exact-block navigation when an existing tab-management plugin, such as Opener, redirects a closed-note open into another tab. Navigation follows the exact requested file, validates indexed block/editor content and waits briefly for readiness. Missing/unsafe/unknown locations still fail explicitly; no file-only downgrade occurs.
-
-Linux acceptance covers real create/save/return, open and closed notes, a far previous cursor, explicit replacement of file-only associations, stable-ID reuse and preservation of existing anchored associations. The coordinated production path preserves existing GNOME Run-or-Raise activation, workspace switching and focus. No bulk association migration is performed.
-
-Requires Obsidian 1.13.7 or newer. AAG-owned code remains MIT; bundled third-party licenses and notices remain intact.
+Requires Obsidian 1.13.7 or newer. AAG-owned code remains MIT; bundled third-party license notices are retained.
 
 ## Release asset SHA256
 
 | Asset | SHA256 |
 | --- | --- |
-| main.js | `b11a329d6444e16cef1765c37e9c8264054fc889cb68e21bef0b5a4ee32760bc` |
-| manifest.json | `3e41dd744a44d6498590a7a67175420c74d9f9a297015538990c1f6ce62ecb34` |
-| styles.css | `b99d5e63f3ad6e6690bfac5aff5921e9e1ffe72779a907563ae256d8d0fee9e7` |
+| main.js | `6ed33beefe2c6e17079b3a6d6af9d3f29fc4362f25e39d9f62bcfabc882c22c6` |
+| manifest.json | `de6f33460053ebb6e342ab4324ffd9dd478420685bfa06c6cc8e1553d95004c0` |
+| styles.css | `d4209fa1a67b69773650a11922aa7dbb5bfe63162de0833f23833d08af486ab1` |
