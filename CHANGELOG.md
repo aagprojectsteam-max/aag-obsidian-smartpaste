@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.1
+
+Hardens the paste commands against delayed clipboard reads: the command now verifies the same Markdown file, editor text, and selection immediately before applying output, and aborts after unload or context changes.
+
+Moves legacy HTML transformations into a readable DOM-based module. Paragraph conversion targets actual p elements only, block and br boundaries are preserved for small-text conversion, unsupported active HTML is removed, retained style values use a narrow allowlist, and rendering CSS is scoped to SmartPaste-owned output.
+
+Adds real headless Chromium DOM regression coverage plus delayed clipboard/file-switch/unload regressions. Stable location-link, navigation, removal, and optional Anki integration behavior remain unchanged.
+
 ## 0.6.0
 
 Adds the optional **Associate current location with Anki** command through the existing AAG Anki Bridge API. It creates or reuses a stable block ID, saves and verifies the note, then opens the bridge confirmation for a specific Anki target. SmartPaste does not manage Anki profiles, databases or transports.

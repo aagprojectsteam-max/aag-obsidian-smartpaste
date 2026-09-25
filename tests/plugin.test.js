@@ -29,8 +29,14 @@ function setup(text = "שלום עולם", options = {}) {
       if (options.clipboardFails) throw new Error("Clipboard denied");
       writes.push(value);
     },
-    async readText() { return "טקסט [plain]"; },
-    async read() { return []; }
+    async readText() {
+      if (options.onClipboardReadText) await options.onClipboardReadText();
+      return options.clipboardText ?? "טקסט [plain]";
+    },
+    async read() {
+      if (options.onClipboardRead) await options.onClipboardRead();
+      return options.clipboardItems ?? [];
+    }
   };
   const context = {
     module: { exports: {} },
@@ -39,6 +45,7 @@ function setup(text = "שלום עולם", options = {}) {
       if (name === "./editor-command") return require("./editor-command-harness").loadEditorCommand(obsidian);
       if (name === "./remove-location-command") return require("./location-removal-harness").loadRemovalCommand(obsidian);
       if (name === "./location-links") return locationLinks;
+      if (name === "./html-transform") return require("../src/html-transform");
       if (name === "./protocol-navigation") return { registerProtocolNavigation: require("./protocol-navigation-harness").loadNavigation(obsidian).registerProtocolNavigation };
       if (name === "./block-id-visibility") return require("../src/block-id-visibility");
       if (["@codemirror/state", "@codemirror/view", "@codemirror/language"].includes(name)) return require(name);
@@ -140,6 +147,37 @@ for (const bundle of [false, true]) {
     assert.equal(env.events.filter((event) => event === "save").length, 1, "reuse must not trigger a save");
   });
 }
+
+test("delayed plain paste aborts after note text changes", async () => {
+  let release; const gate = new Promise(resolve => { release = resolve; });
+  const env = setup("Original", { onClipboardReadText: () => gate });
+  await env.plugin.onload();
+  const command = env.plugin.commands.find(c => c.id === "paste-html-with-font-sizes");
+  const pending = command.callback();
+  env.editor.replaceRange("changed ", { line: 0, ch: 0 });
+  release(); await pending;
+  assert.equal(env.editor.getValue(), "changed Original");
+  assert.match(env.notices.at(-1), /Paste cancelled/);
+});
+test("delayed paste aborts when the view switches files", async () => {
+  let release; const gate = new Promise(resolve => { release = resolve; });
+  const env = setup("Original", { onClipboardReadText: () => gate });
+  await env.plugin.onload();
+  const pending = env.plugin.commands.find(c => c.id === "paste-small-as-braces").callback();
+  env.view.file = { path: "other.md", extension: "md" };
+  release(); await pending;
+  assert.equal(env.editor.getValue(), "Original");
+  assert.match(env.notices.at(-1), /Paste cancelled/);
+});
+test("delayed paste aborts on unload", async () => {
+  let release; const gate = new Promise(resolve => { release = resolve; });
+  const env = setup("Original", { onClipboardReadText: () => gate });
+  await env.plugin.onload();
+  const pending = env.plugin.commands.find(c => c.id === "paste-small-as-colors").callback();
+  env.plugin.onunload(); release(); await pending;
+  assert.equal(env.editor.getValue(), "Original");
+  assert.match(env.notices.at(-1), /Paste cancelled/);
+});
 
 test("clipboard rejection keeps the saved ID for retry", async () => {
   const options = { clipboardFails: true };
