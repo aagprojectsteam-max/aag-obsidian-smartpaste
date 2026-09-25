@@ -1,6 +1,6 @@
 {
   "name": "aag-smart-paste",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "scripts": {
     "check": "node scripts/publication.cjs check",

@@ -92,7 +92,7 @@ for (const token of [legacy, current]) {
     assert.equal(after.edit, null);
     assert.equal(after.id, token.slice(1));
     assert.equal(state.doc.toString(), doc, "no migration of legacy IDs");
-    assert.equal(buildBlockUri("Example Vault", "פתק.md", before.id), buildBlockUri("Example Vault", "פתק.md", after.id));
+    assert.equal(buildBlockUri("AAG Vault", "פתק.md", before.id), buildBlockUri("AAG Vault", "פתק.md", after.id));
   });
 }
 

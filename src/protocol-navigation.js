@@ -8,6 +8,25 @@ function debug(stage, detail = {}) {
   if (DEBUG) console.debug("AAG Smart Paste protocol:", stage, detail);
 }
 
+function cursorRestorePending(app) {
+  // Read-only compatibility with the installed post-open cursor restorer.
+  // Explicit location navigation must happen AFTER its default restoration.
+  const plugin = app.plugins?.getPlugin?.("remember-cursor-position") ||
+    app.plugins?.plugins?.["remember-cursor-position"];
+  return plugin?.loadingFile === true;
+}
+
+function revealEditor(editor) {
+  const cm = editor.cm;
+  // A tall inline title/properties panel can leave the entire editor below
+  // the viewport. CodeMirror queues scroll effects while inView is false.
+  // Reveal the editor's real DOM boundary first, then use its normal API to
+  // scroll to the exact block. No guessed coordinates or document changes.
+  if (cm?.inView === false && cm.dom?.isConnected && cm.scrollDOM?.clientHeight > 0) {
+    cm.contentDOM?.scrollIntoView({ block: "start", inline: "nearest", behavior: "instant" });
+  }
+}
+
 function cachedBlock(app, file, id) {
   const blocks = app.metadataCache.getFileCache(file)?.blocks;
   const matches = Object.entries(blocks || {}).filter(([key]) => key.toLowerCase() === id.toLowerCase());
@@ -119,10 +138,10 @@ async function navigateToBlock(app, target, cancelled = () => false) {
   // Wait only for that exact requested view; never navigate the previous file.
   let view, block, cursor;
   let readinessError;
-  for (let attempt = 0; attempt < 51; attempt++) {
+  for (let attempt = 0; attempt < 151; attempt++) {
     if (cancelled()) return;
     view = leaf.view;
-    if (view instanceof MarkdownView && view.file === file && file.path === target.file && view.getMode() === "source") {
+    if (view instanceof MarkdownView && view.file === file && file.path === target.file && view.getMode() === "source" && !cursorRestorePending(app)) {
       try {
         block = cachedBlock(app, file, target.block);
         cursor = blockCursor(block, view.editor, target.block);
@@ -132,16 +151,41 @@ async function navigateToBlock(app, target, cancelled = () => false) {
         readinessError = error;
       }
     } else {
-      readinessError = new NavigationError("לא ניתן לפתוח את הפתק המבוקש בעורך Markdown.");
+      readinessError = new NavigationError(cursorRestorePending(app) ? "שחזור מיקום הפתק טרם הסתיים." : "לא ניתן לפתוח את הפתק המבוקש בעורך Markdown.");
     }
-    if (attempt === 50) throw readinessError;
+    if (attempt === 150) throw readinessError;
     await new Promise(resolve => setTimeout(resolve, 20));
   }
   if (cancelled()) return;
   view.editor.setCursor(cursor);
   view.editor.focus();
+  revealEditor(view.editor);
   view.editor.scrollIntoView({ from: cursor, to: cursor }, true);
   clearTargetNavigationHighlight(view.editor, block);
+  // Confirm the actual post-layout selection, not merely that setCursor returned.
+  // Re-read the block because a late native state restore can replace selection.
+  for (let attempt = 0; attempt < 51; attempt++) {
+    if (cancelled()) return;
+    await new Promise(resolve => setTimeout(resolve, 20));
+    if (leaf.view !== view || view.file !== file) throw new NavigationError("הפתק השתנה במהלך הניווט.");
+    const current = view.editor.getCursor?.();
+    const cm = view.editor.cm;
+    let visible = true;
+    if (cm?.coordsAtPos && cm?.scrollDOM?.getBoundingClientRect) {
+      const position = cm.state.doc.line(cursor.line + 1).from + cursor.ch;
+      const point = cm.coordsAtPos(position), viewport = cm.scrollDOM.getBoundingClientRect();
+      visible = !!point && viewport.height > 0 && point.top >= viewport.top && point.top < viewport.bottom;
+    }
+    if (!cursorRestorePending(app) && visible && (!current || (current.line === cursor.line && current.ch === cursor.ch))) break;
+    if (attempt === 50) throw new NavigationError("המיקום המדויק לא נשמר לאחר פתיחת הפתק.");
+    if (!cursorRestorePending(app)) {
+      block = cachedBlock(app, file, target.block);
+      cursor = blockCursor(block, view.editor, target.block);
+      view.editor.setCursor(cursor);
+      revealEditor(view.editor);
+      view.editor.scrollIntoView({ from: cursor, to: cursor }, true);
+    }
+  }
   debug("cursor-placed", { cursor });
 }
 
@@ -158,12 +202,17 @@ function registerProtocolNavigation(plugin) {
     try { target = parseProtocolTarget({ action: PROTOCOL_ACTION, ...target }, plugin.app.vault.getName()); }
     catch (error) { return Promise.reject(error); }
     const request = pending.then(async () => {
-      await ready;
+      let timer;
+      try {
+        await Promise.race([ready, new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new NavigationError("Obsidian layout is not ready.")), 4000);
+        })]);
+      } finally { clearTimeout(timer); }
       if (disposed) throw new NavigationError("SmartPaste is unloaded.");
       await navigateToBlock(plugin.app, target, () => disposed);
       if (disposed) throw new NavigationError("SmartPaste is unloaded.");
     });
-    pending = request.catch(() => {});
+    pending = request.catch(error => { console.warn("AAG_EXACT_NAVIGATION_FAILED", { file: target.file, block: target.block, error: error.message }); });
     return request;
   };
   plugin.registerObsidianProtocolHandler(PROTOCOL_ACTION, params => {

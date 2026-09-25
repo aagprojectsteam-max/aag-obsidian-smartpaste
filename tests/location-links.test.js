@@ -44,7 +44,7 @@ test("duplicate existing IDs are rejected case-insensitively", () => {
 });
 
 for (const path of [
-  'דוגמאות/דוגמאות שו"ע יו"ד סימן סט.md',
+  'חזרות/חזרות שו"ע יו"ד סימן סט.md',
   "nested/folder/a note.md",
   "folder/quotes' and (parentheses)! & ? = + %,;@.md",
   "literal%20filename.md",
@@ -52,14 +52,14 @@ for (const path of [
   "reserved/#^|.md"
 ]) {
   test(`URI round trip: ${path}`, () => {
-    const uri = buildBlockUri("Example Vault", path, "aag-123");
+    const uri = buildBlockUri("AAG Vault", path, "aag-123");
     const parsed = new URL(uri);
     assert.equal(parsed.protocol, "obsidian:");
     assert.equal(parsed.hostname, "smartpaste");
     assert.equal(parsed.hash, "");
-    assert.equal(parsed.searchParams.get("vault"), "Example Vault");
+    assert.equal(parsed.searchParams.get("vault"), "AAG Vault");
     assert.equal(parsed.searchParams.get("file"), path);
-    assert.match(uri, /vault=Example%20Vault&file=/);
+    assert.match(uri, /vault=AAG%20Vault&file=/);
     assert.equal(parsed.searchParams.get("block"), "aag-123");
     assert.match(uri, /&block=aag-123$/);
     assert.doesNotMatch(uri, /[\s"'()!]/);
