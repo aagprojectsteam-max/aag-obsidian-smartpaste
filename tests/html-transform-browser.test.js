@@ -49,10 +49,20 @@ test("real Chromium DOM preserves structure and sanitizes unsupported active HTM
   );
 
   try {
+    const profileDir = path.join(dir, "chromium-profile");
     const r = cp.spawnSync(chromium, [
-      "--headless", "--no-sandbox", "--disable-gpu", "--dump-dom", "file://" + htmlFile
+      "--headless=new",
+      "--no-sandbox",
+      "--disable-gpu",
+      "--disable-dev-shm-usage",
+      "--no-first-run",
+      "--allow-file-access-from-files",
+      "--user-data-dir=" + profileDir,
+      "--dump-dom",
+      "file://" + htmlFile
     ], { encoding: "utf8", timeout: 15000, maxBuffer: 4 * 1024 * 1024 });
-    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.status, 0, "Chromium failed: " + (r.stderr || r.error || "no diagnostic"));
+    assert.notEqual(r.stdout.trim(), "", "Chromium returned an empty DOM (" + chromium + ")");
     assert.match(r.stdout, /<pre id="result">PASS<\/pre>/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
