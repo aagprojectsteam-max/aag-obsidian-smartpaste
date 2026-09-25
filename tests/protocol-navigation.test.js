@@ -3,10 +3,23 @@ const assert = require("node:assert/strict");
 const { parseProtocolTarget, buildBlockUri } = require("../src/protocol-target");
 const { setup } = require("./protocol-navigation-harness");
 
-const id = "smartpasteblockID-0123456789abcdef";
-const params = { action: "smartpaste", vault: "Example Vault", file: "note.md", block: id };
+test('editor below tall properties is revealed before its queued exact scroll', async () => {
+  const env = setup(), calls = [];
+  env.editor.cm = {
+    inView: false, dom: {isConnected: true}, scrollDOM: {clientHeight: 500},
+    contentDOM: {scrollIntoView(options) {calls.push(['reveal', options]); env.editor.cm.inView = true;}}
+  };
+  const scroll = env.editor.scrollIntoView;
+  env.editor.scrollIntoView = (...args) => {assert.equal(env.editor.cm.inView, true); calls.push(['exact']); scroll(...args);};
+  await env.request();
+  assert.deepEqual(calls.map(call => call[0]), ['reveal', 'exact']);
+  assert.equal(env.editor.getValue(), env.doc);
+});
 
-for (const path of ["note.md", 'דוגמאות/דוגמאות שו"ע יו"ד סימן צב.md', "spaces in name.md",
+const id = "smartpasteblockID-0123456789abcdef";
+const params = { action: "smartpaste", vault: "AAG Vault", file: "note.md", block: id };
+
+for (const path of ["note.md", 'חזרות/חזרות שו"ע יו"ד סימן צב.md', "spaces in name.md",
   "one/two/three.md", "literal%20filename.md", "literal%2e%2e/note.md", "plus+percent%25.md"]) {
   test(`protocol URI round trip with one decoding: ${path}`, () => {
     const uri = buildBlockUri(params.vault, path, id);
@@ -132,6 +145,40 @@ test("repeated navigation stays collapsed, keeps the target, and never changes M
   assert.equal(env.calls.filter(c => c[0] === "cursor").length, 3);
   assert.equal(env.editor.getSelection(), "");
   assert.equal(env.editor.getValue(), env.doc);
+});
+
+test("post-open cursor restoration finishes BEFORE explicit block navigation", async () => {
+  const restorer = { loadingFile: false };
+  const env = setup({ onOpen(env) {
+    restorer.loadingFile = true;
+    setTimeout(() => { env.editor.setCursor({line: 0, ch: 0}); restorer.loadingFile = false; }, 80);
+  } });
+  env.app.plugins = { getPlugin: id => id === "remember-cursor-position" ? restorer : null };
+  await env.request();
+  assert.deepEqual(env.notices, []);
+  assert.equal(env.editor.getCursor().line, 2);
+  assert.equal(env.calls.filter(c => c[0] === "cursor")[0][1].line, 0);
+  assert.equal(env.editor.getValue(), env.doc);
+});
+
+test("late first-layout selection replacement is corrected before success", async () => {
+  const env = setup();
+  const original = env.editor.scrollIntoView;
+  let once = true;
+  env.editor.scrollIntoView = (...args) => {
+    original(...args);
+    if (once) { once = false; setTimeout(() => env.editor.setCursor({line: 0, ch: 0}), 5); }
+  };
+  await env.request();
+  assert.deepEqual(env.notices, []);
+  assert.equal(env.editor.getCursor().line, 2);
+});
+
+test("stuck restoration fails explicitly instead of reporting exact navigation", async () => {
+  const env = setup();
+  env.app.plugins = { getPlugin: () => ({loadingFile: true}) };
+  await assert.rejects(env.plugin.navigateToLocation(env.target));
+  assert.equal(env.calls.some(c => c[0] === "cursor"), false);
 });
 
 test("stale or malformed cache does not place a cursor at a wrong marker", async () => {
