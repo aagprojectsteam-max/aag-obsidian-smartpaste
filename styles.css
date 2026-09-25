@@ -1,5 +1,5 @@
-/* AAG - Smart Paste */
-.markdown-preview-view span[style*="font-size"],
-.markdown-preview-view div[style*="font-size"] {
+/* AAG - Smart Paste: scope rendering tweaks to HTML owned by this plugin. */
+.markdown-preview-view .aag-smart-paste-html span[style*="font-size"],
+.markdown-preview-view .aag-smart-paste-html div[style*="font-size"] {
   line-height: 1.7;
 }

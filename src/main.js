@@ -4,9 +4,11 @@ const { createBlockIdVisibilityExtension } = require("./block-id-visibility");
 const { registerProtocolNavigation } = require("./protocol-navigation");
 const { registerLocationRemoval } = require("./remove-location-command");
 const { addEditorCommand } = require("./editor-command");
+const { cleanHtml, smallToBraces, smallToColors } = require("./html-transform");
 
 module.exports = class AAGSmartPastePlugin extends Plugin {
   async onload() {
+    this.unloading = false;
     registerLocationRemoval(this);
 
     addEditorCommand(this, {
@@ -24,31 +26,22 @@ module.exports = class AAGSmartPastePlugin extends Plugin {
     addEditorCommand(this, {
       id: "paste-html-with-font-sizes",
       name: "Paste HTML With Font Sizes",
-      editorCallback: async (editor) => {
-        const html = await this.getClipboardHtml();
-        if (!html) return this.pastePlain(editor);
-        editor.replaceSelection(this.cleanHtml(html));
-      }
+      editorCallback: (editor, view) =>
+        this.pasteWithStableContext(editor, view, cleanHtml)
     });
 
     addEditorCommand(this, {
       id: "paste-small-as-braces",
       name: "Paste Small Text As Braces",
-      editorCallback: async (editor) => {
-        const html = await this.getClipboardHtml();
-        if (!html) return this.pastePlain(editor);
-        editor.replaceSelection(this.smallToBraces(html));
-      }
+      editorCallback: (editor, view) =>
+        this.pasteWithStableContext(editor, view, smallToBraces)
     });
 
     addEditorCommand(this, {
       id: "paste-small-as-colors",
       name: "Paste Small Text As Colors",
-      editorCallback: async (editor) => {
-        const html = await this.getClipboardHtml();
-        if (!html) return this.pastePlain(editor);
-        editor.replaceSelection(this.smallToColors(html));
-      }
+      editorCallback: (editor, view) =>
+        this.pasteWithStableContext(editor, view, smallToColors)
     });
 
     addEditorCommand(this, {
@@ -77,6 +70,52 @@ module.exports = class AAGSmartPastePlugin extends Plugin {
         console.error(`AAG Smart Paste: ${name} initialization failed`, error);
       }
     }
+  }
+
+  onunload() {
+    this.unloading = true;
+  }
+
+  capturePasteContext(editor, view) {
+    return {
+      editor,
+      view,
+      file: view?.file ?? null,
+      path: view?.file?.path ?? null,
+      text: editor.getValue(),
+      selections: JSON.stringify(editor.listSelections())
+    };
+  }
+
+  pasteContextIsCurrent(context) {
+    return !this.unloading &&
+      context.file &&
+      context.view?.file === context.file &&
+      context.file.path === context.path &&
+      context.view.editor === context.editor &&
+      context.editor.getValue() === context.text &&
+      JSON.stringify(context.editor.listSelections()) === context.selections;
+  }
+
+  async pasteWithStableContext(editor, view, transformHtml) {
+    const context = this.capturePasteContext(editor, view);
+    let html = "";
+    let plainText = null;
+    try {
+      html = await this.getClipboardHtml();
+      if (!html) plainText = await navigator.clipboard.readText();
+    } catch (error) {
+      console.error("AAG Smart Paste: clipboard read failed", error);
+      new Notice("Could not read the clipboard.");
+      return;
+    }
+    if (!this.pasteContextIsCurrent(context)) {
+      new Notice("Paste cancelled because the note, selection, or text changed.");
+      return;
+    }
+    const output = html ? transformHtml(html) : this.fixSquareBrackets(plainText ?? "");
+    editor.replaceSelection(output);
+    if (!html) new Notice("No HTML found. Pasted plain text.");
   }
 
   async copyLocationLink(editor, view, associate = false) {
@@ -190,112 +229,34 @@ module.exports = class AAGSmartPastePlugin extends Plugin {
   }
 
   async getClipboardHtml() {
-    try {
-      const items = await navigator.clipboard.read();
-
-      for (const item of items) {
-        if (item.types.includes("text/html")) {
-          const blob = await item.getType("text/html");
-          return await blob.text();
-        }
+    const items = await navigator.clipboard.read();
+    for (const item of items) {
+      if (item.types.includes("text/html")) {
+        const blob = await item.getType("text/html");
+        return await blob.text();
       }
-    } catch (e) {
-      new Notice("Clipboard permission failed. Try using the command palette.");
-      console.error(e);
     }
-
     return "";
   }
 
-  async pastePlain(editor) {
-    let text = await navigator.clipboard.readText();
-    text = this.fixSquareBrackets(text);
+  async pastePlain(editor, view = null) {
+    if (view) return this.pasteWithStableContext(editor, view, () => "");
+    const text = this.fixSquareBrackets(await navigator.clipboard.readText());
     editor.replaceSelection(text);
     new Notice("No HTML found. Pasted plain text.");
   }
 
   fixSquareBrackets(text) {
-    return text
-      .replace(/\[/g, "(")
-      .replace(/\]/g, ")");
+    return text.replace(/\[/g, "(").replace(/\]/g, ")");
   }
 
   normalizeSpaces(text) {
-    return text
-      .replace(/[ \t]+/g, " ")
-      .replace(/\s+\{/g, " {")
-      .replace(/\}\s+/g, "} ")
-      .replace(/\{\s+/g, "{")
-      .replace(/\s+\}/g, "}")
-      .replace(/ {2,}/g, " ")
-      .trim();
+    return text.replace(/[ \t]+/g, " ").replace(/\s+\{/g, " {")
+      .replace(/\}\s+/g, "} ").replace(/\{\s+/g, "{").replace(/\s+\}/g, "}")
+      .replace(/ {2,}/g, " ").trim();
   }
 
-  cleanHtml(html) {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
-
-    doc.querySelectorAll("*").forEach((el) => {
-      const style = el.getAttribute("style") || "";
-      const fontSize = style.match(/font-size\s*:\s*[^;]+/i);
-      const textAlign = style.match(/text-align\s*:\s*[^;]+/i);
-      const direction = style.match(/direction\s*:\s*[^;]+/i);
-
-      const keep = [];
-
-      if (fontSize) keep.push(fontSize[0]);
-      if (textAlign) keep.push(textAlign[0]);
-      if (direction) keep.push(direction[0]);
-
-      [...el.attributes].forEach(attr => el.removeAttribute(attr.name));
-
-      if (keep.length) {
-        el.setAttribute("style", keep.join("; "));
-      }
-    });
-
-    let body = doc.body.innerHTML;
-
-    body = body
-      .replace(/<p/gi, "<div")
-      .replace(/<\/p>/gi, "</div>")
-      .replace(/<b>/gi, "<strong>")
-      .replace(/<\/b>/gi, "</strong>");
-
-    return this.fixSquareBrackets(body.trim());
-  }
-
-  smallToBraces(html) {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
-
-    doc.querySelectorAll("small").forEach((small) => {
-      const text = this.fixSquareBrackets(small.textContent.trim());
-      small.replaceWith(" {" + text + "} ");
-    });
-
-    const result = this.fixSquareBrackets(doc.body.textContent);
-    return this.normalizeSpaces(result);
-  }
-
-  smallToColors(html) {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
-
-    doc.querySelectorAll("*").forEach((el) => {
-      [...el.attributes].forEach(attr => el.removeAttribute(attr.name));
-    });
-
-    doc.querySelectorAll("small").forEach((small) => {
-      const span = doc.createElement("span");
-      span.setAttribute("style", "color:#2563eb;");
-      span.textContent = this.fixSquareBrackets(small.textContent);
-      small.replaceWith(span);
-    });
-
-    let body = doc.body.innerHTML.trim();
-    body = this.fixSquareBrackets(body);
-
-    return body;
-  }
+  cleanHtml(html) { return cleanHtml(html); }
+  smallToBraces(html) { return smallToBraces(html); }
+  smallToColors(html) { return smallToColors(html); }
 };

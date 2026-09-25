@@ -110,3 +110,7 @@ AAG-owned code is licensed under [MIT](LICENSE). Obsidian is a separately suppli
 The authored entry is `src/main.js`; root `main.js` is generated and committed. Never hand-edit the generated bundle. The build bundles the Markdown parser and preserves dependency licenses. Obsidian/CodeMirror remain host-provided imports. Build before running the suite after source changes. `npm run reproducibility` verifies a byte-identical rebuild.
 
 All pre-existing behavioral tests are retained. Optional native-parser tests require an independently installed Obsidian archive; see the validation guide. No proprietary Obsidian code is included. [Third-party notices](THIRD_PARTY_NOTICES.md) cover bundled dependencies and distinguish development/host dependencies from AAG code.
+
+## Privacy and network behavior
+
+Smart Paste does not use telemetry, analytics, ads, accounts, or remote network services. Clipboard access happens only when you invoke a paste or copy command. The optional Anki association action uses the separately installed local AAG - Anki Bridge and does not itself connect to a remote Anki service.
