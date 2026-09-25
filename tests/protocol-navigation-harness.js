@@ -21,7 +21,7 @@ function setup(options = {}) {
   class TFile {}
   class MarkdownView { getMode() { return this.mode; } }
   const obsidian = { TFile, MarkdownView, Notice: class { constructor(text) { notices.push(text); } } };
-  const file = Object.assign(new TFile(), { path: options.path || 'דוגמאות/פתק עם רווח.md', extension: "md" });
+  const file = Object.assign(new TFile(), { path: options.path || 'חזרות/פתק עם רווח.md', extension: "md" });
   const lines = doc.split("\n");
   const start = options.start || { line: 2, col: 0 };
   const end = options.end || { line: lines.length - 1, col: lines.at(-1).length };
@@ -30,6 +30,7 @@ function setup(options = {}) {
     lineCount: () => state.doc.lines,
     getLine: line => state.doc.line(line + 1).text,
     getValue: () => state.doc.toString(),
+    getCursor: () => { const line = state.doc.lineAt(state.selection.main.head); return {line: line.number - 1, ch: state.selection.main.head - line.from}; },
     getSelection: () => state.sliceDoc(state.selection.main.from, state.selection.main.to),
     listSelections: () => state.selection.ranges.map(r => ({ anchor: r.anchor, head: r.head })),
     setCursor(pos) {
@@ -53,7 +54,7 @@ function setup(options = {}) {
   let layoutReady;
   const app = {
     vault: {
-      getName: () => options.vault || "Example Vault",
+      getName: () => options.vault || "AAG Vault",
       getAbstractFileByPath: path => options.missingFile || path !== file.path ? null : file,
       modify() { throw new Error("Unexpected vault write"); },
       create() { throw new Error("Unexpected vault write"); },

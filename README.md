@@ -110,3 +110,7 @@ AAG-owned code is licensed under [MIT](LICENSE). Obsidian is a separately suppli
 The authored entry is `src/main.js`; root `main.js` is generated and committed. Never hand-edit the generated bundle. The build bundles the Markdown parser and preserves dependency licenses. Obsidian/CodeMirror remain host-provided imports. Build before running the suite after source changes. `npm run reproducibility` verifies a byte-identical rebuild.
 
 All pre-existing behavioral tests are retained. Optional native-parser tests require an independently installed Obsidian archive; see the validation guide. No proprietary Obsidian code is included. [Third-party notices](THIRD_PARTY_NOTICES.md) cover bundled dependencies and distinguish development/host dependencies from AAG code.
+
+## 0.6.1 hardening candidate
+
+The 0.6.1 candidate adds stale-editor guards for asynchronous clipboard reads, parser-based HTML transformations that preserve block boundaries, scoped rendering CSS, and additional exact-location/navigation regressions. Existing public 0.6.0 behavior remains the compatibility baseline.

@@ -9,13 +9,13 @@ const { setup, loadNavigation } = require("./protocol-navigation-harness");
 const id = "smartpasteblockID-0123456789abcdef";
 
 test("exact emitted URI retains vault for host routing and encodes each field once", () => {
-  assert.equal(buildBlockUri("Example Vault", "folder/a note.md", id),
-    "obsidian://smartpaste?vault=Example%20Vault&file=folder%2Fa%20note.md&block=" + id);
+  assert.equal(buildBlockUri("AAG Vault", "folder/a note.md", id),
+    "obsidian://smartpaste?vault=AAG%20Vault&file=folder%2Fa%20note.md&block=" + id);
 });
 
-for (const vault of ["Example Vault", "כספת בעברית"]) {
+for (const vault of ["AAG Vault", "כספת בעברית"]) {
   test(`desktop consumes vault before handler dispatch: ${vault}`, async () => {
-    const env = setup({ vault, path: 'דוגמאות/פתק עם רווח%20.md' });
+    const env = setup({ vault, path: 'חזרות/פתק עם רווח%20.md' });
     const uri = new URL(buildBlockUri(vault, env.file.path, env.target.block));
     const params = { ...Object.fromEntries(uri.searchParams), action: uri.hostname };
     assert.equal(params.vault, vault);
@@ -31,7 +31,7 @@ for (const vault of ["Example Vault", "כספת בעברית"]) {
 
 test("explicit invalid/mismatched vaults are still rejected", () => {
   for (const vault of ["Other", "", null, undefined, 42]) {
-    assert.throws(() => parseProtocolTarget({ action: "smartpaste", file: "note.md", block: id, vault }, "Example Vault"));
+    assert.throws(() => parseProtocolTarget({ action: "smartpaste", file: "note.md", block: id, vault }, "AAG Vault"));
   }
 });
 
@@ -42,12 +42,12 @@ test("omitting vault does not relax required fields, action, traversal or unknow
     { action: "smartpaste", file: "../note.md", block: id },
     { action: "smartpaste", file: "note.md", block: "bad_id" },
     { action: "smartpaste", file: "note.md", block: id, command: "anything" }
-  ]) assert.throws(() => parseProtocolTarget(bad, "Example Vault"));
+  ]) assert.throws(() => parseProtocolTarget(bad, "AAG Vault"));
 });
 
 for (const bundle of [false, true]) {
   test(`${bundle ? "built artifact" : "source"}: command URI dispatches to registered handler across plugin reload`, async () => {
-    const env = setup({ register: false, vault: "כספת עם רווח", path: "דוגמאות/פתק%20 עם רווח.md" });
+    const env = setup({ register: false, vault: "כספת עם רווח", path: "חזרות/פתק%20 עם רווח.md" });
     const writes = [];
     env.app.vault.read = async () => env.doc;
     env.app.workspace.getActiveViewOfType = () => env.view;
@@ -61,7 +61,7 @@ for (const bundle of [false, true]) {
       registerObsidianProtocolHandler(action, handler) { env.plugin.registerObsidianProtocolHandler(action, handler); }
     }
     const obsidian = { ...env.obsidian, Plugin };
-    const context = { module: { exports: {} }, crypto: webcrypto, console,
+    const context = { module: { exports: {} }, crypto: webcrypto, console, setTimeout, clearTimeout,
       navigator: { clipboard: { async writeText(uri) { writes.push(uri); } } },
       require(name) {
         if (name === "obsidian") return obsidian;
@@ -124,7 +124,7 @@ function installedRouter(vault, receive) {
   return uri => context.Ge(uri);
 }
 
-for (const vault of ["Example Vault", "כספת עם רווח"]) {
+for (const vault of ["AAG Vault", "כספת עם רווח"]) {
   test(`installed desktop router -> registered handler: ${vault}`, { skip: !process.env.OBSIDIAN_ASAR }, async () => {
     const env = setup({ vault });
     let args;
@@ -145,9 +145,9 @@ for (const vault of ["Example Vault", "כספת עם רווח"]) {
 
 test("installed router rejects malformed encoding and preserves literal encoded filenames", { skip: !process.env.OBSIDIAN_ASAR }, () => {
   let args;
-  const route = installedRouter("Example Vault", received => { args = received; });
-  assert.throws(() => route("obsidian://smartpaste?vault=Example%20Vault&file=%ZZ&block=" + id));
+  const route = installedRouter("AAG Vault", received => { args = received; });
+  assert.throws(() => route("obsidian://smartpaste?vault=AAG%20Vault&file=%ZZ&block=" + id));
   assert.equal(args, undefined);
-  route(buildBlockUri("Example Vault", "literal%2e%2e%2f/פתק%20.md", id));
+  route(buildBlockUri("AAG Vault", "literal%2e%2e%2f/פתק%20.md", id));
   assert.equal(args.file, "literal%2e%2e%2f/פתק%20.md");
 });
