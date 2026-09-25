@@ -6,9 +6,14 @@ const path = require("node:path");
 const cp = require("node:child_process");
 
 function findChromium() {
-  for (const name of ["chromium", "chromium-browser", "google-chrome"]) {
-    const result = cp.spawnSync("sh", ["-c", "command -v " + name], { encoding: "utf8" });
-    if (result.status === 0) return name;
+  const probeUrl = "data:text/html,%3Cpre%20id%3D%22probe%22%3EPASS%3C%2Fpre%3E";
+  for (const name of ["google-chrome-stable", "google-chrome", "chromium", "chromium-browser"]) {
+    const exists = cp.spawnSync("sh", ["-c", "command -v " + name], { encoding: "utf8" });
+    if (exists.status !== 0) continue;
+    const probe = cp.spawnSync(name, [
+      "--headless", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--dump-dom", probeUrl
+    ], { encoding: "utf8", timeout: 10000, maxBuffer: 1024 * 1024 });
+    if (probe.status === 0 && /<pre id="probe">PASS<\/pre>/.test(probe.stdout || "")) return name;
   }
   return null;
 }
@@ -50,7 +55,7 @@ test("real Chromium DOM preserves structure and sanitizes unsupported active HTM
 
   try {
     const r = cp.spawnSync(chromium, [
-      "--headless", "--no-sandbox", "--disable-gpu", "--dump-dom", "file://" + htmlFile
+      "--headless", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--dump-dom", "file://" + htmlFile
     ], { encoding: "utf8", timeout: 15000, maxBuffer: 4 * 1024 * 1024 });
     assert.equal(r.status, 0, r.stderr);
     assert.match(r.stdout, /<pre id="result">PASS<\/pre>/);
